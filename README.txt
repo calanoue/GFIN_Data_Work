@@ -27,6 +27,18 @@ Under GFIN_Data_Work:
    - Run create_all_data_db.py to create database with foreign key tables and data tables with references and indexes to foreign key tables. 
      create_all_data_db uses sqlite_io.py to insert masked data into the database as <null> values. See FBS_ProdSTAT_PriceSTAT_TradeSTAT.db3 for
      an example of a finished product.
+   - Add in indexes for all foreign key tables as well
+     - CREATE INDEX country_index ON Country (country_id)
+	 - CREATE INDEX element_index ON Element (element_id)
+	 - CREATE INDEX item_index ON Item (item_id)
+	 - CREATE INDEX source_index ON Source (source_id)
+	 - CREATE INDEX unit_index ON Unit (unit_id)
+
+ - Remove duplicates in both the Demographic and Commodity tables (mostly from area grouping doubling):
+   - DELETE FROM Commodity WHERE id NOT IN
+     (SELECT MAX(id) FROM Commodity GROUP BY (country_id||"_"||item_id||"_"||element_id))
+   - DELETE FROM Demographic WHERE id NOT IN
+     (SELECT MAX(id) FROM Demographic GROUP BY (country_id||"_"||element_id))
 	 
  - Add in the SchemeColor table:
    - Create a new table and copy the SchemeColor table from the previous databases for the chloropleth map colors and data bins.
@@ -53,7 +65,7 @@ Under GFIN_Data_Work:
      of <null> values. Make sure .\Commodity Code Conversions\CCode_to_ProdStat.csv is up-to-date with the commodity aggregations. Also, change
 	 num_rows variable to a number larger than the number of countries * 4 elements * number of items.
 	 
- - Insert Area Groupings table for sake of aggregating population values for per capita calculations
+ - Insert Area Groupings table for keeping track of what countries fall in what area group:
    - Run CREATE TABLE AreaGroup (id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER REFERENCES Country, country_id INTEGER REFERENCES Country)
    - Get Area Groupings from http://faostat.fao.org/site/371/default.aspx and keep all countries that are found in the Country table. Check on China
      because its country_id could be 351 from this sheet but 357 in the database. See FaostatAreaGroupList.csv for an example.
@@ -70,5 +82,7 @@ Under GFIN_Data_Work:
    - Find new algorithms for assigning different colors to many different countries and regions. This website contains a couple suggestions:
      http://stackoverflow.com/questions/470690/how-to-automatically-generate-n-distinct-colors   
    - Run load_country_info.py to add x and z centroid values and R, G, and B color values to each country from the .\Country_Colors_Centroids.csv file.
+ 
+ - Calculate elasticities:
     
  

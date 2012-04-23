@@ -15,9 +15,8 @@ keep_items = array(cursor.execute("SELECT DISTINCT item_id FROM Commodity").fetc
 all_items = array(cursor.execute("SELECT item_id FROM Item").fetchall(), int).flatten()
 remove_items = setdiff1d(all_items, keep_items)
 
-# Remove the items from the Item table
-for item in remove_items:
-    cursor.execute("DELETE FROM Item WHERE item_id=%s"%item)
+# Remove the items from the Item table that are no longer found in the Commodity table
+cursor.execute("DELETE FROM Item WHERE (%s)"%" OR ".join("item_id=%s"%i for i in remove_items))
 connection.commit()
 
 # Close cursor and connection

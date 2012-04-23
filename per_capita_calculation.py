@@ -28,24 +28,12 @@ insert_xs = np.ma.empty((100000, len(names)))
 demo_names = ",".join("yr%s"%x for x in COUNTRY_YR_IDX) # yr1961, yr1962, ..., yr2009, yr2010
 demo_ndtype = zip(demo_names.split(","), len(COUNTRY_YR_IDX)*['<f8'])
 
-# Area country_id groupings
-area_ndtype = [('group_id', int), ('country_id', int)]
-area_groups = np.array(cursor.execute("SELECT group_id, country_id FROM AreaGroup").fetchall(), area_ndtype)
-
 # Go through each country in the Commodity table
 count = 0
 for country_id in unique_country_ids:
 
     # Get Total Population - Both Sexes (511) data and mask values less than or equal to 0 by country
-    if country_id < 5000:
-
-        Q = "SELECT %s FROM Demographic WHERE element_id=511 AND country_id=%s"%(demo_names, country_id)
-    else:
-        country_id_group = " OR ".join(
-            "country_id=%s"%x for x in area_groups[np.where(area_groups['group_id']==country_id)]['country_id']
-        )
-        sum_demo_names = ",".join("SUM(%s)"%x for x in demo_names.split(","))
-        Q = "SELECT %s FROM Demographic WHERE element_id=511 AND (%s)"%(sum_demo_names, country_id_group)
+    Q = "SELECT %s FROM Demographic WHERE element_id=511 AND country_id=%s"%(demo_names, country_id)
     pop_xs = np.ma.masked_less_equal(
         np.ma.array(cursor.execute(Q).fetchall(), demo_ndtype).view(float).reshape(-1, len(COUNTRY_YR_IDX)),
         0).flatten()
@@ -77,8 +65,8 @@ np.put(insert_xs['element_id'], np.where(insert_xs['element_id']==100), 101) # p
 np.put(insert_xs['element_id'], np.where(insert_xs['element_id']==51), 52) # per capita production
 
 # Replace unit_ids with those for the per capita elements
-np.put(insert_xs['unit_id'], np.where(insert_xs['unit_id']==3), 17) # tonnes/person
-np.put(insert_xs['unit_id'], np.where(insert_xs['unit_id']==9), 18) # tonnes/1000 No
+np.put(insert_xs['unit_id'], np.where(insert_xs['unit_id']==3), 17) # tonnes/1000 people
+np.put(insert_xs['unit_id'], np.where(insert_xs['unit_id']==9), 18) # 1000 No/1000 people
 
 # Replace source_ids with a new code for 'InnovoSoy Calculated'
 insert_xs['source_id'] = 8

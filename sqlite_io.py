@@ -20,7 +20,6 @@ from itertools import imap
 import sqlite3
 import numpy as np
 import numpy.ma as ma
-import re
 
 PARSE_DECLTYPES = sqlite3.PARSE_DECLTYPES
 PARSE_COLNAMES = sqlite3.PARSE_COLNAMES
@@ -107,7 +106,8 @@ def _executesql(dbname, tablename, fieldlist, generator, index=[],
     
     # Create indexes if needed
     if index:
-        indexstr = "CREATE INDEX %s_index ON %s(%s)"%(tablename, tablename, ", ".join(i for i in index))
+        indexstr = "CREATE INDEX %s_index ON %s(%s)"%(tablename.lower(), tablename,
+                                                      ", ".join(i for i in index))
         cursor.execute(indexstr)
     connection.commit()
     connection.close()
