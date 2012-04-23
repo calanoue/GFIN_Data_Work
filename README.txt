@@ -59,9 +59,14 @@ Under GFIN_Data_Work:
      because its country_id could be 351 from this sheet but 357 in the database. See FaostatAreaGroupList.csv for an example.
 	 
  - Calculate per capita variables:
-   - Run per_capita_calculation.py to create new rows for Consumption and Production per capita.
+   - Create new element_ids for Consumption (101) and Production per capita (52).
+   - Create new unit_ids for <unique unit>/person.
+     - SELECT DISTINCT unit_id FROM Commodity WHERE element_id=51 OR element_id=100
+   - Create new source_id for GFIN calculated element.
+   - Run per_capita_calculation.py to create new rows for Consumption and Production per capita with the above changes.
 	 
  - Add location and color data to the Country Table:
+   - Calculate the centroids of the regions.
    - Find new algorithms for assigning different colors to many different countries and regions. This website contains a couple suggestions:
      http://stackoverflow.com/questions/470690/how-to-automatically-generate-n-distinct-colors   
    - Run load_country_info.py to add x and z centroid values and R, G, and B color values to each country from the .\Country_Colors_Centroids.csv file.

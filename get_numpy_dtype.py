@@ -2,8 +2,6 @@
 Functions to help with data formatting and analysis.
 """
 
-import numpy as np
-
 def get_dtype(connection, table, nameReturn=False, remove_id=False):
     """
     Get numpy data type from a database table
@@ -14,7 +12,7 @@ def get_dtype(connection, table, nameReturn=False, remove_id=False):
     ndtype = []
     for n, t in zip(names, typestr):
         if t =='INTEGER':
-            ndtype.append((n, int))
+            ndtype.append((n, float))
         elif t[:4]=='TEXT':
             ndtype.append((n, object)) # to handle large string values
         else:
