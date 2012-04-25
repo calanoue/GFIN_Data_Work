@@ -1,6 +1,35 @@
 """
 Functions to help with data formatting and analysis.
 """
+from re import search
+
+def format_creates(sql_statements):
+    """
+    Format DDL Create Statements
+    """
+    create_strs = []
+    for i in sql_statements:
+        i = i.replace("]", "")
+        i = i.replace("[", "")
+        create_str = ""
+        for j in i.split('\r\n'):
+            create_str += j.strip()
+        create_strs.append(create_str)
+    return create_strs
+
+def format_indexes(sql_statements):
+    """
+    Format DDL index statements
+    """
+    index_strs = []
+    for row in sql_statements:
+        tbl, index_statement = row
+        index_statement = index_statement.replace("[", "")
+        index_statement = index_statement.replace("]", "")
+        match = search("[(].*[)]", index_statement).group().replace("(", "").replace(")", "")
+        index_strs.append("CREATE INDEX %s_index ON %s (%s)"%(tbl, tbl, match))
+    return index_strs
+
 
 def get_dtype(connection, table, nameReturn=False, remove_id=False):
     """

@@ -3,6 +3,7 @@ Aggregate commodities based on their FAO aggregation relationships.
 """
 import numpy as np
 import sqlite3
+from get_numpy_dtype import format_creates, format_indexes
 from itertools import izip
 
 # Connect to the database and create a cursor for extracting data
@@ -10,6 +11,12 @@ DB = r".\GFIN_DB.db3"
 TABLE_NAME = "Commodity"
 connection = sqlite3.connect(DB)
 cursor = connection.cursor()
+
+# Get index and create statements from DDL
+create_statements = np.array(cursor.execute(
+    """SELECT sql FROM sqlite_master WHERE type='table' AND name='%s'"""%TABLE_NAME).fetchall()).flatten()
+index_statements = np.array(cursor.execute(
+    """SELECT tbl_name, sql FROM sqlite_master WHERE type='index' AND name='%s'"""%TABLE_NAME).fetchall())
 
 # Get all item codes that need to be aggregated into another commodity
 ys = np.genfromtxt(".\Commodity Code Conversions\CCode_to_ProdStat.csv", delimiter=",", usemask=True, dtype=None)
@@ -83,16 +90,24 @@ all_xs = np.sort(all_xs, order=['source_id', 'element_id', 'item_id', 'country_i
 cursor.execute("DROP TABLE %s"%TABLE_NAME)
 connection.commit()
 
+# Create new table
+create_strs = format_creates(create_statements)
+[cursor.execute(statement) for statement in create_strs]
+connection.commit()
+
 # Close cursor and connection
 cursor.close()
 connection.close()
 
 # Create new Commodity table for aggregate data
 import sqlite_io
+sqlite_io.tosqlite(all_xs, 0, DB, TABLE_NAME, autoid=True, create=False)
 
-foreign_keys = {
-    'country_id':'Country', 'item_id':'Item', 'element_id':'Element',
-    'unit_id':'Unit', 'source_id':'Source'
-}
-index = ['source_id', 'element_id', 'item_id', 'country_id'] # index in order
-sqlite_io.tosqlite(all_xs, 0, DB, TABLE_NAME, autoid=True, foreign_keys=foreign_keys, index=index, create=True)
+# Add in index
+connection = sqlite3.connect(DB)
+cursor = connection.cursor()
+index_strs = format_indexes(index_statements)
+[cursor.execute(statement) for statement in index_strs]
+connection.commit()
+cursor.close()
+connection.close()

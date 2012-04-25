@@ -6,7 +6,7 @@ masked values in the new database from <null> to -1 for optimizing queries.
 import numpy as np
 from sqlite3 import dbapi2 as sqlite
 import sqlite_io
-from get_numpy_dtype import get_dtype, mask_none_values
+from get_numpy_dtype import get_dtype, mask_none_values, format_creates, format_indexes
 
 # Global variables
 DB = "./FBS_ProdSTAT_PriceSTAT_TradeSTAT.db3" # main database
@@ -18,12 +18,24 @@ REMOVE_IF_LESS_THAN = 5 # remove rows with values less than this
 connection = sqlite.connect(DB)
 connection.text_factory = str #use 8 bit strings instead of unicode strings in SQLite
 cursor = connection.cursor()
+new_connection = sqlite.connect(NEW_DB)
+new_cursor = new_connection.cursor()
 
 # Copy all Foreign Key and Variable tables over to new database
 copy_tables =  np.array(cursor.execute("""
 SELECT name FROM sqlite_master
 WHERE type='table' AND name!='sqlite_sequence' AND name!='Commodity' AND name!='Demographic'""").fetchall()
 ).flatten()
+
+# Create new tables
+create_statements = np.array(cursor.execute(
+    """SELECT sql FROM sqlite_master WHERE type='table' and name!='sqlite_sequence'"""
+).fetchall()).flatten()
+create_strs = format_creates(create_statements)
+[new_cursor.execute(statement) for statement in create_strs]
+new_connection.commit()
+
+# Insert data into each table
 for table in copy_tables:
     is_autoid = table in ('SchemeColor', 'AreaGroup') # tables with id as primary key
     ndtype, names = get_dtype(connection, table, remove_id=is_autoid, nameReturn=True)
@@ -33,11 +45,10 @@ for table in copy_tables:
 
     # Mask all None values and create primary keys
     autoid = [False, True][is_autoid] # assign primary keys
-    index = [["%s_id"%table.lower()], []][is_autoid]
     primary_key = ["%s_id"%table.lower(), False][is_autoid] # primary key
     xs = mask_none_values(xs) # mask none values
     sqlite_io.tosqlite(xs, 0, NEW_DB, table, autoid=autoid,
-        create=True, primary_key=primary_key, index=index)
+        create=False, primary_key=primary_key)
 
 # Format value tables with -1 values for missing values
 for table in TABLES:
@@ -45,11 +56,6 @@ for table in TABLES:
     names = ",".join([name.strip() for name in names if name.strip()!='id'])
     xs = sqlite_io.fromsqlite(DB, "SELECT %s FROM %s"%(names, table), "tmp_table")
     ndtype = xs.dtype
-    index = [
-        ["source_id", "element_id", "item_id", "country_id"],
-        ["source_id", "element_id", "country_id"]
-    ][table=="Demographic"]
-    foreign_keys = {i:i[:-3].capitalize() for i in index}
     xs =  xs.view(float).reshape((-1, len(names.split(","))))
     xs = np.ma.masked_less_equal(xs, 0) # mask any value less than or equal to 0
 
@@ -68,8 +74,13 @@ for table in TABLES:
     xs = xs.view(ndtype).flatten()
 
     # Insert values into the specified table
-    sqlite_io.tosqlite(xs, 0, NEW_DB, table, autoid=True, create=True,
-        foreign_keys=foreign_keys, index=index)
+    sqlite_io.tosqlite(xs, 0, NEW_DB, table, autoid=True, create=False)
+
+# Create indexes on all tables based on previous indexes
+index_statements = np.array(cursor.execute("""SELECT tbl_name, sql FROM sqlite_master WHERE type='index'""").fetchall())
+index_strs = format_indexes(index_statements)
+[new_cursor.execute(statement) for statement in index_strs]
+new_connection.commit()
 
 # Close the cursor and the connection
 cursor.close()

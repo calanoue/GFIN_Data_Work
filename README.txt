@@ -22,12 +22,12 @@ Delete columns with formatting codes.
 Find unique values for foreign keys and then replace text with integer id values following the below format
 country_id, item_id, element_id, unit_id, source_id, 1961, ..., 2010, ..., 2050
 
-Under GFIN_Data_Work:
+Under GFIN_Data_Work folder:
  - Create foreign key and main data tables:
    - Run create_all_data_db.py to create database with foreign key tables and data tables with references and indexes to foreign key tables. 
      create_all_data_db uses sqlite_io.py to insert masked data into the database as <null> values. See FBS_ProdSTAT_PriceSTAT_TradeSTAT.db3 for
      an example of a finished product.
-   - Add in indexes for all foreign key tables as well
+   - Add in indexes for all foreign key tables as well 
      - CREATE INDEX country_index ON Country (country_id)
 	 - CREATE INDEX element_index ON Element (element_id)
 	 - CREATE INDEX item_index ON Item (item_id)
@@ -76,6 +76,18 @@ Under GFIN_Data_Work:
      - SELECT DISTINCT unit_id FROM Commodity WHERE element_id=51 OR element_id=100
    - Create new source_id for GFIN calculated element.
    - Run per_capita_calculation.py to create new rows for Consumption and Production per capita with the above changes.
+   
+ - Calculate net change population variables:
+   - Run net_change_calculation.py
+   
+ - Combine Demographic and Commodity tables (table will be larger, but faster for queries and still smaller than the old database)
+   - Make item_id field values -1 for Demographic elements
+   - Make yr2011, yr2012, ..., yr2029, yr2030 field values -1 for Commodity elements
+   - Sort in order of indexes
+   - Run combine_tables.py
+   
+ - Add in Year and Decade table:
+   - Run create_year_table.py
 	 
  - Add location and color data to the Country Table:
    - Calculate the centroids of the regions.
@@ -83,6 +95,6 @@ Under GFIN_Data_Work:
      http://stackoverflow.com/questions/470690/how-to-automatically-generate-n-distinct-colors   
    - Run load_country_info.py to add x and z centroid values and R, G, and B color values to each country from the .\Country_Colors_Centroids.csv file.
  
- - Calculate elasticities:
+ - Calculate elasticities, either using Stata or by conventional method of log changes in Python:
     
  
