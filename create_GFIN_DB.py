@@ -22,10 +22,11 @@ new_connection = sqlite.connect(NEW_DB)
 new_cursor = new_connection.cursor()
 
 # Copy all Foreign Key and Variable tables over to new database
-copy_tables =  np.array(cursor.execute("""
-SELECT name FROM sqlite_master
-WHERE type='table' AND name!='sqlite_sequence' AND name!='Commodity' AND name!='Demographic'""").fetchall()
-).flatten()
+copy_tables =  np.array(cursor.execute(
+    """
+    SELECT name FROM sqlite_master
+    WHERE type='table' AND name!='sqlite_sequence' AND name!='Commodity' AND name!='Demographic'
+    """).fetchall()).flatten()
 
 # Create new tables
 create_statements = np.array(cursor.execute(
