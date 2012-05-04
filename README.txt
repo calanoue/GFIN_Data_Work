@@ -44,14 +44,15 @@ Under GFIN_Data_Work folder:
    - Create a new table and copy the SchemeColor table from the previous databases for the chloropleth map colors and data bins.
   
  - Create GFIN_DB database (which is used for the rest of the changes):
+  
+   - Aggregate commodities up to FBS item codes:
+	  - Run aggregate_commodities_sql.py to aggregate commodity codes up to the FBS commodity code definitions in Commodity table. Production Price and Yield
+	    are aggregated by averaging the values, while all the rest are aggregated by summing. For the Production Quantity values, if the ProdSTAT values
+	    exist, the FBS Production Quantity values will be removed.
+		
    - Run create_GFIN_DB.py to remove any rows of data that have less than five values and change masked values to -1, so that we don't need to use
      sqlite_io.py to get data from the database anymore. It is too slow for use in production because it makes many calls to the database to find
 	 null values in each column and then masks those values. Also, adds Net Change and Per Capita elements to the Element table.
- 
- - Aggregate commodities up to FBS item codes:
-   - Run aggregate_commodities.py to aggregate commodity codes up to the FBS commodity code definitions in Commodity table. Production Price and Yield
-     are aggregated by averaging the values, while all the rest are aggregated by summing. For the Production Quantity values, if the ProdSTAT values
-	 exist, the FBS Production Quantity values will be removed.
 	 
  - Delete item codes that no longer exist:
    - From the Item table, delete any items that are no longer found in the Commodity table by running delete_items_SQL.py

@@ -209,9 +209,9 @@ def tosqlite(series, count, dbname, tablename, overwrite=False, autoid=False,
     a = series
     a = np.asanyarray(a)
     adtype = a.dtype
-    a = a.ravel() # Collapse a structured array to 1D
+    a = a.ravel()
     fieldlist = _getsqldesc(a) # Get the list of fields
-    ndtype = [(_, np.object) for _ in adtype.names] # Transform to a ndarray of Python object
+    ndtype = [(_, np.object) for _ in adtype.names] # Transform to a ndarray of Python objects
     a = a.astype(ndtype)
     
     # Create a generator
