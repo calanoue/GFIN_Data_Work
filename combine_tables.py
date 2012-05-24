@@ -77,9 +77,7 @@ import sqlite_io
 sqlite_io.tosqlite(zs, 0, DB, "Datum", autoid=True, create=False)
 
 # Add on index
-index = """
-CREATE INDEX Datum_index ON Datum (element_id, item_id, country_id)
-"""
+index = "CREATE INDEX Datum_index ON Datum (element_id, item_id, country_id)"
 cursor.execute(index)
 connection.commit()
 

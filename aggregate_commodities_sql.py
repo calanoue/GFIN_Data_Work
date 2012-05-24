@@ -33,8 +33,8 @@ index_statement = format_indexes(index_statement)[0]
 
 # Get all item codes that need to be aggregated into another commodity
 ys = np.genfromtxt(".\Commodity Code Conversions\CCode_to_ProdStat.csv", delimiter=",", usemask=True, dtype=None)
-unique_aggregate_items = np.unique(ys) # items that need to be summed, averaged, etc
-aggregate_item_lookup = dict(izip(ys[:, 0], ys[:, 1:])) # dictionary of item codes, {main_item_id:aggregate_item_ids}
+unique_aggregate_items = np.unique(ys) # Items that need to be summed, averaged, etc
+aggregate_item_lookup = dict(izip(ys[:, 0], ys[:, 1:])) # Dictionary of item codes, {main_item_id:aggregate_item_ids}
 
 # Query columns
 id_names = ["id", "country_id", "item_id", "element_id", "unit_id", "source_id"]
@@ -72,6 +72,7 @@ for key, item_ids in aggregate_item_lookup.iteritems():
 
 # Get item_ids that don't need to be aggregated
 unique_items = np.array(cursor.execute("SELECT item_id FROM Item").fetchall()).flatten()
+names[2] = "item_id"
 keep_items_SQL = """INSERT INTO commodity_xs SELECT %s FROM %s WHERE %s"""%(
     ",".join(names[1:]), TABLE_NAME, " OR ".join(
         "item_id=%s"%item_j for item_j in [item_i for item_i in unique_items if item_i not in unique_aggregate_items])
