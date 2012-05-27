@@ -20,7 +20,7 @@ Control Panel -> Region and Language -> Formats -> Additional Settings -> List S
 Format Data in CSV files:
 Delete columns with formatting codes.
 Find unique values for foreign keys and then replace text with integer id values following the below format
-country_id, item_id, element_id, unit_id, source_id, 1961, ..., 2010, ..., 2050
+country_id, item_id, element_id, unit_id, source_id, 1961, ..., 2010, ..., 2030
 
 Under GFIN_Data_Work folder:
  - Create foreign key and main data tables:
