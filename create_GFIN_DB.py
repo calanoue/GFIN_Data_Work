@@ -9,7 +9,7 @@ import sqlite_io
 from get_numpy_dtype import get_dtype, mask_none_values, format_creates, format_indexes
 
 # Global variables
-DB = "./FBS_ProdSTAT_PriceSTAT_TradeSTAT.db3" # main database
+DB = "./FAO_Database.db3" # main database
 NEW_DB = "./GFIN_DB.db3" # new database that will be created
 TABLES = ["Commodity", "Demographic"] # tables to perform removal and re-formatting of masked values
 REMOVE_IF_LESS_THAN = 5 # remove rows with values less than this
@@ -30,7 +30,7 @@ copy_tables =  np.array(cursor.execute(
 
 # Create new tables
 create_statements = np.array(cursor.execute(
-    """SELECT sql FROM sqlite_master WHERE type='table' and name!='sqlite_sequence'"""
+    "SELECT sql FROM sqlite_master WHERE type='table' and name!='sqlite_sequence'"
 ).fetchall()).flatten()
 create_strs = format_creates(create_statements)
 [new_cursor.execute(statement) for statement in create_strs]
@@ -61,7 +61,7 @@ for table in TABLES:
     xs = np.ma.masked_less_equal(xs, 0) # mask any value less than or equal to 0
 
     # Remove Commodity rows that have less than 5 values
-    if table=='Commodity':
+    if table == 'Commodity':
         id_field_idx = 5 # number of columns that split the data b/w foreign keys and values
         id_fields = xs[:,:id_field_idx] # foreign key fields
         value_fields = xs[:,id_field_idx:] # data value fields
@@ -78,10 +78,10 @@ for table in TABLES:
     sqlite_io.tosqlite(xs, 0, NEW_DB, table, autoid=True, create=False)
 
 # Create indexes on all tables based on previous indexes
-index_statements = np.array(cursor.execute("""SELECT tbl_name, sql FROM sqlite_master WHERE type='index'""").fetchall())
-index_strs = format_indexes(index_statements)
-[new_cursor.execute(statement) for statement in index_strs]
-new_connection.commit()
+#index_statements = np.array(cursor.execute("SELECT tbl_name, sql FROM sqlite_master WHERE type='index'").fetchall())
+#index_strs = format_indexes(index_statements)
+#[new_cursor.execute(statement) for statement in index_strs]
+#new_connection.commit()
 
 # Close the cursor and the connection
 cursor.close()

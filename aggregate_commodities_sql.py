@@ -7,7 +7,7 @@ from get_numpy_dtype import format_creates, format_indexes
 from itertools import izip
 
 # Connect to the database and create a cursor for extracting data
-DB = r".\FBS_ProdSTAT_PriceSTAT_TradeSTAT.db3"
+DB = r".\FAO_Database.db3"
 TABLE_NAME = "Commodity"
 connection = sqlite3.connect(DB)
 cursor = connection.cursor()
@@ -26,10 +26,10 @@ Q = 'SELECT sql FROM sqlite_master WHERE type="table" AND tbl_name="%s"'%TABLE_N
 create_statement, = np.array(cursor.execute(Q).fetchall()).flatten()
 create_statement = format_sql_str(create_statement)
 
-# Get index statement for new table from DDL
-Q = 'SELECT tbl_name, sql FROM sqlite_master WHERE type="index" AND tbl_name="%s"'%TABLE_NAME
-index_statement = np.array(cursor.execute(Q).fetchall())
-index_statement = format_indexes(index_statement)[0]
+## Get index statement for new table from DDL
+#Q = 'SELECT tbl_name, sql FROM sqlite_master WHERE type="index" AND tbl_name="%s"'%TABLE_NAME
+#index_statement = np.array(cursor.execute(Q).fetchall())
+#index_statement = format_indexes(index_statement)[0]
 
 # Get all item codes that need to be aggregated into another commodity
 ys = np.genfromtxt(".\Commodity Code Conversions\CCode_to_ProdStat.csv", delimiter=",", usemask=True, dtype=None)
@@ -94,9 +94,9 @@ DROP TABLE commodity_xs;
 cursor.executescript(Q)
 connection.commit()
 
-# Create index on the table
-cursor.execute(index_statement)
-connection.commit()
+## Create index on the table
+#cursor.execute(index_statement)
+#connection.commit()
 
 # Close cursor and connection
 cursor.close()
