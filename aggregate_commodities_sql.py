@@ -3,7 +3,7 @@ Aggregate commodities based on their FAO aggregation relationships.
 """
 import numpy as np
 import sqlite3
-from get_numpy_dtype import format_creates, format_indexes
+from get_numpy_dtype import format_indexes
 from itertools import izip
 
 # Connect to the database and create a cursor for extracting data
@@ -26,14 +26,14 @@ Q = 'SELECT sql FROM sqlite_master WHERE type="table" AND tbl_name="%s"'%TABLE_N
 create_statement, = np.array(cursor.execute(Q).fetchall()).flatten()
 create_statement = format_sql_str(create_statement)
 
-## Get index statement for new table from DDL
+# Get index statement for new table from DDL
 #Q = 'SELECT tbl_name, sql FROM sqlite_master WHERE type="index" AND tbl_name="%s"'%TABLE_NAME
 #index_statement = np.array(cursor.execute(Q).fetchall())
 #index_statement = format_indexes(index_statement)[0]
 
 # Get all item codes that need to be aggregated into another commodity
 ys = np.genfromtxt(".\Commodity Code Conversions\CCode_to_ProdStat.csv", delimiter=",", usemask=True, dtype=None)
-unique_aggregate_items = np.unique(ys) # Items that need to be summed, averaged, etc
+unique_aggregate_items = np.unique(ys) # Items that need to be summed, averaged, etc.
 aggregate_item_lookup = dict(izip(ys[:, 0], ys[:, 1:])) # Dictionary of item codes, {main_item_id:aggregate_item_ids}
 
 # Query columns
@@ -47,7 +47,7 @@ avg_names = id_names + ["AVG(yr%s) AS yr%s"%(x, x) for x in years]
 cursor.execute("""CREATE TABLE commodity_xs AS SELECT %s FROM %s WHERE 1=2"""%(",".join(names[1:]), TABLE_NAME))
 connection.commit()
 
-# Main Query String that aggregates the values
+# Main query string that aggregates the values - (41:Yield and 60:Producer Price) are averaged, while the rest if summed
 Q = """
 CREATE TEMP TABLE commodity_tmp AS
 SELECT %s FROM Commodity WHERE (%%s) AND element_id NOT IN (41, 60) GROUP BY country_id||element_id
@@ -63,7 +63,7 @@ DROP TABLE item_where; DROP TABLE commodity_tmp;
 
 # Go through each key and value array in the aggregate dictionary and sum/average the arrays
 for key, item_ids in aggregate_item_lookup.iteritems():
-    item_N = np.transpose(np.ma.notmasked_edges(item_ids, axis=1))[1] + 1 # number of items to aggregate
+    item_N = np.transpose(np.ma.notmasked_edges(item_ids, axis=1))[1] + 1 # Number of items to aggregate
     item_id_str = " OR ".join("item_id=%s"%v for v in item_ids[:item_N])
 
     # Format column names list to remove id column and change item_id values to the key value
@@ -94,7 +94,7 @@ DROP TABLE commodity_xs;
 cursor.executescript(Q)
 connection.commit()
 
-## Create index on the table
+# Create index on the table
 #cursor.execute(index_statement)
 #connection.commit()
 

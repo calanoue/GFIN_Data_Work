@@ -2,6 +2,7 @@
 Formatting and forecasting script for new and final Python student version
 """
 import numpy as np
+from scipy import stats
 from clean_data import CleanData, ExpSmooth, MiscForecastFunctions
 from sqlite3 import dbapi2 as sqlite
 
@@ -9,9 +10,11 @@ from sqlite3 import dbapi2 as sqlite
 VALUE_SLICE = slice(5, None, 1)
 ID_SLICE = slice(0, 5)
 X = np.arange(1961, 2031)
+exp_smooth = ExpSmooth()
 
 # Connect to the database and create a cursor
 DB = r"C:\Users\calanoue\Dropbox\Dont Want to Lose\GFIN Random Python Work\demoGFIN\sqlite_student_db.db3"
+DB = r".\GFIN_DB.db3"
 connection = sqlite.connect(DB)
 connection.text_factory = str # use 8 bit strings instead of unicode strings in SQLite
 cursor = connection.cursor()
@@ -19,10 +22,43 @@ cursor = connection.cursor()
 # Items to keep in the new database
 # TODO - create new database with only commodities from Peter
 Q = "SELECT * FROM Datum WHERE (item_id=2555 OR item_id=-1) AND (element_id < 511 OR element_id > 703)"
+Q = "SELECT * FROM Datum WHERE id=5"
 datum_xs = np.ma.masked_equal(cursor.execute(Q).fetchall(), -1)[:, 1:]
 
-# Countries to keep commodity, GDP, and Population data
-# TODO - change x and z coordinates to -1 for some of the countries or just find their centroids
+def forecast_from_trend_line(xs, yrs, forecast_yrs, forecast_periods, trend_function, poly_degree=2, moving_average=3):
+    """
+    Forecast data by using the specified trend function. Trend functions are the same functions offered in Excel
+    for adding trend lines to a plot.
+    """
+    if not trend_function: # Linear trend (y = ax + B)
+        slope, intercept, _, _, _ = stats.linregress(yrs, xs)
+        y = slope * forecast_yrs + intercept
+    elif trend_function == 1: # Polynomial trend (p(x) = p[0] * x**deg + ... + p[deg])
+        z = np.polyfit(yrs, xs, poly_degree)
+        y = np.polyval(z, forecast_yrs)
+    elif trend_function == 2: # Logarithmic trend (y = A + B log x)
+        slope, intercept, _, _, _ = stats.linregress(np.log(yrs), xs)
+        y = intercept + slope * np.log(forecast_yrs)
+    elif trend_function == 3: # Exponential trend (y = Ae^(Bx))
+        slope, intercept, _, _, _ = stats.linregress(yrs, np.log(xs))
+        y = np.exp(intercept) * np.exp(slope * forecast_yrs)
+    elif trend_function ==4: # Power function trend (y = Ax^B)
+        slope, intercept, _, _, _ = stats.linregress(np.log(yrs), np.log(xs))
+        y = np.exp(intercept) * np.power(forecast_yrs, slope)
+    elif trend_function == 5: # n-period moving average
+        n = xs.shape[0]
+        xs = np.ma.hstack((xs, np.ma.zeros(forecast_periods)))
+        for i in xrange(forecast_periods):
+            idx = slice(-moving_average + i + n, i + n)
+            xs[i + n] = np.average(xs[idx])
+        y = xs[-forecast_periods:]
+    elif trend_function == 6: # Exponential smoothing with a damped trend
+        xs_fit_opt = exp_smooth.calc_variable_arrays(.98, xs, forecast_periods)
+        y = exp_smooth.exp_smooth_forecast(xs_fit_opt, True)[-forecast_periods:]
+    else: # Consumption forecasting with elasticity and income
+        print "a bit harder"
+        y = 10
+    return y
 
 # Format all rows
 new_datum_xs = np.ma.masked_all(datum_xs.shape, np.float)
@@ -34,22 +70,25 @@ for row in datum_xs:
         new_datum_xs[count] = np.ma.hstack((row[ID_SLICE], xs))
         count += 1
 
-# Remove blank rows
+# Remove blank rows of data
 new_datum_xs = np.ma.resize(new_datum_xs, (count, new_datum_xs.shape[1]))
 
-# TODO - forecast here
-# For non-consumption data:
-# 1. Exp smoothing
-# 2. Linear regression
-# 3. 3 period MA
-# 4. 3 period MA w/ weights - .2, .3, and .5 weights
+# Extract the value and the id data from the returned query
+values = new_datum_xs[:, VALUE_SLICE]
+ids = new_datum_xs[:, ID_SLICE]
 
-# For consumption data:
-# 1. Elasticity and income
-# 2. Linear regression
-# 3. Exp smoothing
-# 4. 3 period MA
-# 5. 3 period MA w/ weights - .2, .3, and .5 weights
+# Go through each row of remaining data and forecast using trend line methods above
+for value_row in values:
+    xs = value_row[~value_row.mask]
+    yrs = X[~value_row.mask]
+    forecast_yrs = np.arange(2011, 2020)
+    forecast_periods = forecast_yrs.shape[0]
+    for i in xrange(7):
+        print i, forecast_from_trend_line(xs, yrs, forecast_yrs, forecast_periods, i)
+exit()
+
+# Countries to keep commodity, GDP, and Population data
+# TODO - change x and z coordinates to -1 for some of the countries or just find their centroids
 
 # Append population and population net change arrays to the formatted and forecasted datum table
 Q = "SELECT * FROM Datum WHERE element_id BETWEEN 511 AND 703"
