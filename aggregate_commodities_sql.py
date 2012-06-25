@@ -16,7 +16,7 @@ def format_sql_str(statement):
     """
     Remove brackets and carriage returns from a SQL statement
     """
-    replace_strs = ["]", "[", "\r\n"]
+    replace_strs = ["]", "[a", "\r\n"]
     for replace_str in replace_strs:
         statement = statement.replace(replace_str, "")
     return statement

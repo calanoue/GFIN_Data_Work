@@ -3,89 +3,101 @@ Formatting and forecasting script for new and final Python student version
 """
 import numpy as np
 from scipy import stats
-from clean_data import CleanData, ExpSmooth, MiscForecastFunctions
+from clean_data import CleanData, ExpSmooth
 from sqlite3 import dbapi2 as sqlite
 
 # Global variables
-VALUE_SLICE = slice(5, None, 1)
-ID_SLICE = slice(0, 5)
+VALUE_COLUMN = 5
+START_YEAR = 1961
+END_YEAR = 2030
+NUM_FORECASTS = 7
+ID_SLICE = slice(0, VALUE_COLUMN)
 X = np.arange(1961, 2031)
 exp_smooth = ExpSmooth()
 
 # Connect to the database and create a cursor
 DB = r"C:\Users\calanoue\Dropbox\Dont Want to Lose\GFIN Random Python Work\demoGFIN\sqlite_student_db.db3"
-DB = r".\GFIN_DB.db3"
 connection = sqlite.connect(DB)
 connection.text_factory = str # use 8 bit strings instead of unicode strings in SQLite
 cursor = connection.cursor()
 
-# Items to keep in the new database
-# TODO - create new database with only commodities from Peter
-Q = "SELECT * FROM Datum WHERE (item_id=2555 OR item_id=-1) AND (element_id < 511 OR element_id > 703)"
-Q = "SELECT * FROM Datum WHERE id=5"
-datum_xs = np.ma.masked_equal(cursor.execute(Q).fetchall(), -1)[:, 1:]
+# Get data from student database for formatting and forecasting - minus id column
+# TODO - remove LIMIT
+datum_xs = np.ma.masked_equal(cursor.execute("SELECT * FROM Datum WHERE element_id NOT BETWEEN 511 AND 703 LIMIT 10").fetchall(), -1)[:, 1:]
 
-def forecast_from_trend_line(xs, yrs, forecast_yrs, forecast_periods, trend_function, poly_degree=2, moving_average=3):
+def forecast_from_trend_line(xs, yrs, forecast_yrs, forecast_periods, trend_function):
     """
     Forecast data by using the specified trend function. Trend functions are the same functions offered in Excel
     for adding trend lines to a plot.
     """
-    if not trend_function: # Linear trend (y = ax + B)
+    if trend_function == 1: # Linear trend (y = ax + B)
         slope, intercept, _, _, _ = stats.linregress(yrs, xs)
         y = slope * forecast_yrs + intercept
-    elif trend_function == 1: # Polynomial trend (p(x) = p[0] * x**deg + ... + p[deg])
-        z = np.polyfit(yrs, xs, poly_degree)
+    elif trend_function == 2: # 2nd degree Polynomial trend (p(x) = p[0] * x**2 + p[2])
+        z = np.polyfit(yrs, xs, 2)
         y = np.polyval(z, forecast_yrs)
-    elif trend_function == 2: # Logarithmic trend (y = A + B log x)
+    elif trend_function == 3: # 3rd degree Polynomial trend (p(x) = p[0] * x**3 + x**2 + p[3])
+        z = np.polyfit(yrs, xs, 3)
+        y = np.polyval(z, forecast_yrs)
+    elif trend_function == 4: # Logarithmic trend (y = A + B log x)
         slope, intercept, _, _, _ = stats.linregress(np.log(yrs), xs)
         y = intercept + slope * np.log(forecast_yrs)
-    elif trend_function == 3: # Exponential trend (y = Ae^(Bx))
+    elif trend_function == 5: # Exponential trend (y = Ae^(Bx))
         slope, intercept, _, _, _ = stats.linregress(yrs, np.log(xs))
         y = np.exp(intercept) * np.exp(slope * forecast_yrs)
-    elif trend_function ==4: # Power function trend (y = Ax^B)
+    elif trend_function == 6: # Power function trend (y = Ax^B)
         slope, intercept, _, _, _ = stats.linregress(np.log(yrs), np.log(xs))
         y = np.exp(intercept) * np.power(forecast_yrs, slope)
-    elif trend_function == 5: # n-period moving average
-        n = xs.shape[0]
-        xs = np.ma.hstack((xs, np.ma.zeros(forecast_periods)))
-        for i in xrange(forecast_periods):
-            idx = slice(-moving_average + i + n, i + n)
-            xs[i + n] = np.average(xs[idx])
-        y = xs[-forecast_periods:]
-    elif trend_function == 6: # Exponential smoothing with a damped trend
+    elif trend_function == 7: # Exponential smoothing with a damped trend
         xs_fit_opt = exp_smooth.calc_variable_arrays(.98, xs, forecast_periods)
         y = exp_smooth.exp_smooth_forecast(xs_fit_opt, True)[-forecast_periods:]
     else: # Consumption forecasting with elasticity and income
-        print "a bit harder"
-        y = 10
+        print "a bit harder and maybe not necessary"
+        y = 8
+
+    # Mask any negative, zero, infinity, or n/a values before returning
+    y = np.ma.masked_less_equal(y, 0)
+    y = np.ma.fix_invalid(y)
     return y
 
 # Format all rows
 new_datum_xs = np.ma.masked_all(datum_xs.shape, np.float)
 count = 0
 for row in datum_xs:
-    values = CleanData(row[VALUE_SLICE][np.newaxis, :], X)
-    xs = values.get_return_values().flatten()
+    start, stop = np.ma.flatnotmasked_edges(row[VALUE_COLUMN:][np.newaxis, :])
+    values = CleanData(row[VALUE_COLUMN:stop + VALUE_COLUMN + 1][np.newaxis, :], X)
+    xs = np.ma.hstack((values.get_return_values().flatten(), np.ma.masked_all(X.shape[0] - stop - 1)))
     if np.ma.sum(xs):
         new_datum_xs[count] = np.ma.hstack((row[ID_SLICE], xs))
         count += 1
 
-# Remove blank rows of data
+# Resize the array to remove blank rows of data
 new_datum_xs = np.ma.resize(new_datum_xs, (count, new_datum_xs.shape[1]))
 
 # Extract the value and the id data from the returned query
-values = new_datum_xs[:, VALUE_SLICE]
+values = new_datum_xs[:, VALUE_COLUMN:]
 ids = new_datum_xs[:, ID_SLICE]
 
-# Go through each row of remaining data and forecast using trend line methods above
-for value_row in values:
+# Go through each row of remaining data - except population - and forecast using trend line methods above
+# Add a new column at the end of ids to keep track of the forecasting trend method
+trend_datum_xs = np.ma.masked_all((new_datum_xs.shape[0] * NUM_FORECASTS, new_datum_xs.shape[1] + 1), np.float)
+count = 0
+for enum, value_row in enumerate(values):
     xs = value_row[~value_row.mask]
     yrs = X[~value_row.mask]
-    forecast_yrs = np.arange(2011, 2020)
+    forecast_yrs = np.arange(np.max(yrs) + 1, END_YEAR + 1)
     forecast_periods = forecast_yrs.shape[0]
-    for i in xrange(7):
-        print i, forecast_from_trend_line(xs, yrs, forecast_yrs, forecast_periods, i)
-exit()
+    for forecast_method in xrange(1, NUM_FORECASTS + 1):
+
+        # Forecast one method at a time
+        trend_xs = forecast_from_trend_line(xs, yrs, forecast_yrs, forecast_periods, forecast_method)
+
+        # Add masked values to the start if minimum starting year is greater than the first year
+        min_yr = np.min(yrs)
+        trend_datum_xs[count] = np.ma.hstack(
+            (ids[enum], forecast_method, np.ma.masked_all(min_yr - START_YEAR), xs, trend_xs)
+        )
+        count += 1
 
 # Countries to keep commodity, GDP, and Population data
 # TODO - change x and z coordinates to -1 for some of the countries or just find their centroids
@@ -93,16 +105,45 @@ exit()
 # Append population and population net change arrays to the formatted and forecasted datum table
 Q = "SELECT * FROM Datum WHERE element_id BETWEEN 511 AND 703"
 pop_xs = np.ma.masked_equal(cursor.execute(Q).fetchall(), -1)[:, 1:]
-new_datum_xs = np.ma.vstack((new_datum_xs, pop_xs))
+pop_xs = np.ma.column_stack((pop_xs[:, ID_SLICE], np.ma.masked_all((pop_xs.shape[0], 1)), pop_xs[:, VALUE_COLUMN:]))
+trend_datum_xs = np.ma.vstack((trend_datum_xs, pop_xs))
 
-# Sort on index columns
-dtype = ",".join('<f8' for _ in xrange(new_datum_xs.shape[1]))
-new_datum_xs = np.ma.sort(new_datum_xs.view(dtype), order=['f2', 'f1', 'f0'], axis=0).view(np.float)
+# Sort on index columns - forecast, element, item, country
+dtype = ",".join('<f8' for _ in xrange(trend_datum_xs.shape[1]))
+trend_datum_xs = np.ma.sort(trend_datum_xs.view(dtype), order=['f5', 'f2', 'f1', 'f0'], axis=0).view(np.float)
 
 # Add in a primary key field
-new_datum_xs = np.ma.column_stack((np.ma.arange(new_datum_xs.shape[0]), new_datum_xs))
-print new_datum_xs
-exit()
+trend_datum_xs = np.ma.column_stack((np.ma.arange(1, trend_datum_xs.shape[0] + 1), trend_datum_xs))
+
+# Change missing values to -1 for storage in database
+trend_datum_xs = np.ma.filled(trend_datum_xs, -1)
+
+# Add new column in the datum table for forecasting method values when adding the new trend data
+# TODO - DROP TABLE Datum;
+Q = """
+CREATE TABLE Datum_1 (id INTEGER PRIMARY KEY AUTOINCREMENT,country_id INTEGER REFERENCES Country,
+item_id INTEGER REFERENCES Item,element_id INTEGER REFERENCES Element,unit_id INTEGER REFERENCES Unit,
+source_id INTEGER REFERENCES Source,forecast_id INTEGER REFERENCES Forecast, yr1961 FLOAT,yr1962 FLOAT,yr1963 FLOAT,
+yr1964 FLOAT,yr1965 FLOAT,yr1966 FLOAT,yr1967 FLOAT,yr1968 FLOAT,yr1969 FLOAT,yr1970 FLOAT,yr1971 FLOAT,yr1972 FLOAT,
+yr1973 FLOAT,yr1974 FLOAT,yr1975 FLOAT,yr1976 FLOAT,yr1977 FLOAT,yr1978 FLOAT,yr1979 FLOAT,yr1980 FLOAT,yr1981 FLOAT,
+yr1982 FLOAT,yr1983 FLOAT,yr1984 FLOAT,yr1985 FLOAT,yr1986 FLOAT,yr1987 FLOAT,yr1988 FLOAT,yr1989 FLOAT,yr1990 FLOAT,
+yr1991 FLOAT,yr1992 FLOAT,yr1993 FLOAT,yr1994 FLOAT,yr1995 FLOAT,yr1996 FLOAT,yr1997 FLOAT,yr1998 FLOAT,yr1999 FLOAT,
+yr2000 FLOAT,yr2001 FLOAT,yr2002 FLOAT,yr2003 FLOAT,yr2004 FLOAT,yr2005 FLOAT,yr2006 FLOAT,yr2007 FLOAT,yr2008 FLOAT,
+yr2009 FLOAT,yr2010 FLOAT,yr2011 FLOAT,yr2012 FLOAT,yr2013 FLOAT,yr2014 FLOAT,yr2015 FLOAT,yr2016 FLOAT,yr2017 FLOAT,
+yr2018 FLOAT,yr2019 FLOAT,yr2020 FLOAT,yr2021 FLOAT,yr2022 FLOAT,yr2023 FLOAT,yr2024 FLOAT,yr2025 FLOAT,yr2026 FLOAT,
+yr2027 FLOAT,yr2028 FLOAT,yr2029 FLOAT,yr2030 FLOAT);
+"""
+cursor.executescript(Q)
+
+# Insert new data into Datum table
+cursor.executemany(
+    "INSERT INTO Datum_1 VALUES(%s)"%','.join('?' for _ in xrange(trend_datum_xs.shape[1])), trend_datum_xs
+)
+connection.commit()
+
+# Add index to Datum table
+cursor.execute("CREATE INDEX Datum_1_index ON Datum_1 (forecast_id, element_id, item_id, country_id)")
+connection.commit()
 
 def forecast_xs_consumption(formatted_xs, id_xs, country_id_index):
     """
@@ -142,26 +183,6 @@ def forecast_xs_consumption(formatted_xs, id_xs, country_id_index):
             xs[idx] = self.misc_forecast.cons_forecast(xs[idx], income_row, TMP_ELASTICITY, stop)
         except IndexError:
             pass
-    return xs
-
-def forecast_xs_non_consumption(formatted_xs):
-    """
-    Forecast non-consumption values.
-    """
-    n = np.size(formatted_xs, 0)
-    xs = np.ma.empty((n, X_N))
-    edges = np.transpose(np.ma.notmasked_edges(formatted_xs, axis=1))
-    for i, edge in enumerate(edges):
-        start, stop = edge[1, :]
-        periods = X_N - stop - 1
-        if periods and np.ma.sum(formatted_xs[i, start:stop + 1]):
-            xs_forecast = formatted_xs[i, start:stop + 1]
-            xs_fit_opt = self.exp_smooth.calc_variable_arrays(.98, xs_forecast, periods)
-            xs[i] = np.ma.hstack(
-                (np.ma.masked_all(start), self.exp_smooth.exp_smooth_forecast(xs_fit_opt, True))
-            )
-        else:
-            xs[i] = formatted_xs[i]
     return xs
 
 # Close the cursor and the connection
