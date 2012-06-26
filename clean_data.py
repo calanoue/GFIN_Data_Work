@@ -11,7 +11,7 @@ class CleanData:
     """
     Class to hold functions corresponding to cleaning and formatting of data.
     """
-    def __init__(self, data, years, recents=7, perc_remove_1=.8, gap_length_to_fill=4,
+    def __init__(self, data, years, recents=7, perc_remove_1=.8, gap_length_to_fill=6,
                  outlier_p=98, max_neighbors=3, perc_remove_2=.6, perc_remove_3=.65):
         self.xs = data
         self.yrs = years
@@ -126,14 +126,15 @@ class CleanData:
 
         # Fill masked value gaps if not at the beginning or end of the array or if the
         # gap length is less than the max gap length
-        cont_regions = self.contiguous_regions(condition)
-        for step in np.arange(2, np.size(cont_regions, 0) + 1, 2): # 1st row start, 2nd stop
-            (axis, blank), (start, stop) = cont_regions[step - 2:step].T
-            gap_length = stop - start # Length of gap
-            if start and stop < self.N: # Don't fill in gaps at beginning or end
-                if not fill_gap_length or gap_length <= fill_gap_length:
-                    self.xs[axis, start:stop] = np.linspace(self.xs[axis, start -1],
-                        self.xs[axis, stop], stop - start + 1, endpoint=False)[1:]
+        if np.any(condition):
+            cont_regions = self.contiguous_regions(condition)
+            for step in np.arange(2, np.size(cont_regions, 0) + 1, 2): # 1st row start, 2nd stop
+                (axis, blank), (start, stop) = cont_regions[step - 2:step].T
+                gap_length = stop - start # Length of gap
+                if start and stop < self.N: # Don't fill in gaps at beginning or end
+                    if not fill_gap_length or gap_length <= fill_gap_length:
+                        self.xs[axis, start:stop] = np.linspace(self.xs[axis, start -1],
+                            self.xs[axis, stop], stop - start + 1, endpoint=False)[1:]
     
     def find_new_starting_value(self):
         """
@@ -247,9 +248,9 @@ class ExpSmooth:
         self.errors = np.zeros(self.data_N)
         self.trendArr = np.zeros(self.zero_len + 1)
         self.fcasts = np.zeros(self.zero_len)
-        avgFirstFourDiffs = np.average(np.diff(self.xs[:4 + 1]))
-        self.trendArr[0] = avgFirstFourDiffs
-        self.lvlArr[0] = self.xs[0] - avgFirstFourDiffs
+        avg_first_four_diffs = np.average(np.diff(self.xs[:4 + 1]))
+        self.trendArr[0] = avg_first_four_diffs
+        self.lvlArr[0] = self.xs[0] - avg_first_four_diffs
         self.trend_modifier = trend_mod
         self.trend_exp = np.ones(self.zero_len + 1)
         self.trend_exp[self.data_N:] = np.power(

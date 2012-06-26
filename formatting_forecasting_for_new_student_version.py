@@ -7,23 +7,22 @@ from clean_data import CleanData, ExpSmooth
 from sqlite3 import dbapi2 as sqlite
 
 # Global variables
-VALUE_COLUMN = 5
-START_YEAR = 1961
-END_YEAR = 2030
-NUM_FORECASTS = 7
-ID_SLICE = slice(0, VALUE_COLUMN)
-X = np.arange(1961, 2031)
-exp_smooth = ExpSmooth()
+VALUE_COLUMN = 5 # First column that holds values
+START_YEAR = 1961 # First year in the database
+END_YEAR = 2030 # Last year in the database
+NUM_FORECASTS = 7 # Number of forecast methods
+ID_SLICE = slice(0, VALUE_COLUMN) # Slice for where id columns are located
+X = np.arange(1961, 2031) # Valid years for database
+exp_smooth = ExpSmooth() # Exponential smoothing class
 
 # Connect to the database and create a cursor
 DB = r"C:\Users\calanoue\Dropbox\Dont Want to Lose\GFIN Random Python Work\demoGFIN\sqlite_student_db.db3"
 connection = sqlite.connect(DB)
-connection.text_factory = str # use 8 bit strings instead of unicode strings in SQLite
 cursor = connection.cursor()
 
 # Get data from student database for formatting and forecasting - minus id column
-# TODO - remove LIMIT
-datum_xs = np.ma.masked_equal(cursor.execute("SELECT * FROM Datum WHERE element_id NOT BETWEEN 511 AND 703 LIMIT 10").fetchall(), -1)[:, 1:]
+Q = "SELECT * FROM Datum WHERE element_id NOT BETWEEN 511 AND 703"
+datum_xs = np.ma.masked_equal(cursor.execute(Q).fetchall(), -1)[:, 1:]
 
 def forecast_from_trend_line(xs, yrs, forecast_yrs, forecast_periods, trend_function):
     """
@@ -48,11 +47,10 @@ def forecast_from_trend_line(xs, yrs, forecast_yrs, forecast_periods, trend_func
     elif trend_function == 6: # Power function trend (y = Ax^B)
         slope, intercept, _, _, _ = stats.linregress(np.log(yrs), np.log(xs))
         y = np.exp(intercept) * np.power(forecast_yrs, slope)
-    elif trend_function == 7: # Exponential smoothing with a damped trend
+    elif trend_function == 7: # Exponential smoothing with a dampened trend
         xs_fit_opt = exp_smooth.calc_variable_arrays(.98, xs, forecast_periods)
         y = exp_smooth.exp_smooth_forecast(xs_fit_opt, True)[-forecast_periods:]
     else: # Consumption forecasting with elasticity and income
-        print "a bit harder and maybe not necessary"
         y = 8
 
     # Mask any negative, zero, infinity, or n/a values before returning
@@ -64,9 +62,12 @@ def forecast_from_trend_line(xs, yrs, forecast_yrs, forecast_periods, trend_func
 new_datum_xs = np.ma.masked_all(datum_xs.shape, np.float)
 count = 0
 for row in datum_xs:
-    start, stop = np.ma.flatnotmasked_edges(row[VALUE_COLUMN:][np.newaxis, :])
-    values = CleanData(row[VALUE_COLUMN:stop + VALUE_COLUMN + 1][np.newaxis, :], X)
-    xs = np.ma.hstack((values.get_return_values().flatten(), np.ma.masked_all(X.shape[0] - stop - 1)))
+    try:
+        start, stop = np.ma.flatnotmasked_edges(row[VALUE_COLUMN:][np.newaxis, :])
+        values = CleanData(row[VALUE_COLUMN:stop + VALUE_COLUMN + 1][np.newaxis, :], X)
+        xs = np.ma.hstack((values.get_return_values().flatten(), np.ma.masked_all(X.shape[0] - stop - 1)))
+    except TypeError: # Some GDP rows do not have any values, therefore remove them
+        xs = np.ma.array([0])
     if np.ma.sum(xs):
         new_datum_xs[count] = np.ma.hstack((row[ID_SLICE], xs))
         count += 1
@@ -94,9 +95,13 @@ for enum, value_row in enumerate(values):
 
         # Add masked values to the start if minimum starting year is greater than the first year
         min_yr = np.min(yrs)
-        trend_datum_xs[count] = np.ma.hstack(
-            (ids[enum], forecast_method, np.ma.masked_all(min_yr - START_YEAR), xs, trend_xs)
-        )
+        try:
+            trend_datum_xs[count] = np.ma.hstack(
+                (ids[enum], forecast_method, np.ma.masked_all(min_yr - START_YEAR), xs, trend_xs)
+            )
+        except ValueError:
+            print "ValueError", enum, ids[enum], forecast_method, np.ma.masked_all(min_yr - START_YEAR)
+            exit()
         count += 1
 
 # Countries to keep commodity, GDP, and Population data
@@ -119,9 +124,9 @@ trend_datum_xs = np.ma.column_stack((np.ma.arange(1, trend_datum_xs.shape[0] + 1
 trend_datum_xs = np.ma.filled(trend_datum_xs, -1)
 
 # Add new column in the datum table for forecasting method values when adding the new trend data
-# TODO - DROP TABLE Datum;
 Q = """
-CREATE TABLE Datum_1 (id INTEGER PRIMARY KEY AUTOINCREMENT,country_id INTEGER REFERENCES Country,
+DROP TABLE Datum;
+CREATE TABLE Datum (id INTEGER PRIMARY KEY AUTOINCREMENT,country_id INTEGER REFERENCES Country,
 item_id INTEGER REFERENCES Item,element_id INTEGER REFERENCES Element,unit_id INTEGER REFERENCES Unit,
 source_id INTEGER REFERENCES Source,forecast_id INTEGER REFERENCES Forecast, yr1961 FLOAT,yr1962 FLOAT,yr1963 FLOAT,
 yr1964 FLOAT,yr1965 FLOAT,yr1966 FLOAT,yr1967 FLOAT,yr1968 FLOAT,yr1969 FLOAT,yr1970 FLOAT,yr1971 FLOAT,yr1972 FLOAT,
@@ -137,12 +142,12 @@ cursor.executescript(Q)
 
 # Insert new data into Datum table
 cursor.executemany(
-    "INSERT INTO Datum_1 VALUES(%s)"%','.join('?' for _ in xrange(trend_datum_xs.shape[1])), trend_datum_xs
+    "INSERT INTO Datum VALUES(%s)"%','.join('?' for _ in xrange(trend_datum_xs.shape[1])), trend_datum_xs
 )
 connection.commit()
 
 # Add index to Datum table
-cursor.execute("CREATE INDEX Datum_1_index ON Datum_1 (forecast_id, element_id, item_id, country_id)")
+cursor.execute("CREATE INDEX Datum_index ON Datum (forecast_id, element_id, item_id, country_id)")
 connection.commit()
 
 def forecast_xs_consumption(formatted_xs, id_xs, country_id_index):
