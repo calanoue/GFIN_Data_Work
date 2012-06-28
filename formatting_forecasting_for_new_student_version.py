@@ -12,7 +12,7 @@ START_YEAR = 1961 # First year in the database
 END_YEAR = 2030 # Last year in the database
 NUM_FORECASTS = 7 # Number of forecast methods
 ID_SLICE = slice(0, VALUE_COLUMN) # Slice for where id columns are located
-X = np.arange(1961, 2031) # Valid years for database
+X = np.arange(START_YEAR, END_YEAR) # Valid years for database
 TABLE = "Datum" # Table to update in the database
 exp_smooth = ExpSmooth() # Exponential smoothing class
 
