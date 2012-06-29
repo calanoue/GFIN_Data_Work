@@ -12,7 +12,7 @@ START_YEAR = 1961 # First year in the database
 END_YEAR = 2030 # Last year in the database
 NUM_FORECASTS = 7 # Number of forecast methods
 ID_SLICE = slice(0, VALUE_COLUMN) # Slice for where id columns are located
-X = np.arange(START_YEAR, END_YEAR) # Valid years for database
+X = np.arange(START_YEAR, END_YEAR + 1) # Valid years for database
 TABLE = "Datum" # Table to update in the database
 exp_smooth = ExpSmooth() # Exponential smoothing class
 
@@ -151,8 +151,6 @@ for forecast_method in xrange(1, NUM_FORECASTS + 1):
 
     # Increase count of records for primary key index
     count += N
-
-# TODO - change x and z coordinates to -1 for some of the countries or just find their centroids
 
 # Add index to Datum table
 cursor.execute("CREATE INDEX %s_index ON %s (forecast_id, element_id, item_id, country_id)"%(TABLE, TABLE))
